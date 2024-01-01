@@ -1,152 +1,224 @@
 import tkinter as tk
 import random
-import heapq
-import sys
 
-sys.setrecursionlimit(10000)
-# Constants
-WIDTH, HEIGHT = 400, 400
-ROWS, COLS = 20, 20
-CELL_SIZE = WIDTH // COLS
+class SnakeGame:
+    def __init__(self, master):
+        self.master = master
+        self.master.title("Snake Game")
+        self.master.geometry("400x400")
+        self.master.resizable(False, False)
 
-# Colors
-WHITE = "white"
-GREEN = "green"
-RED = "red"
-BLACK = "black"
-
-class Node:
-    def __init__(self, row, col):
-        self.row = row
-        self.col = col
-        self.g_cost = 0
-        self.h_cost = 0
-        self.parent = None
-
-    def __lt__(self, other):
-        return False
-
-def generate_grid():
-    return [[Node(row, col) for col in range(COLS)] for row in range(ROWS)]
-
-def heuristic(node, target):
-    return abs(node.row - target.row) + abs(node.col - target.col)
-
-def get_neighbours(grid, node):
-    neighbours = []
-    if node.row > 0:
-        neighbours.append(grid[node.row - 1][node.col])
-    if node.row < ROWS - 1:
-        neighbours.append(grid[node.row + 1][node.col])
-    if node.col > 0:
-        neighbours.append(grid[node.row][node.col - 1])
-    if node.col < COLS - 1:
-        neighbours.append(grid[node.row][node.col + 1])
-    return neighbours
-
-def reconstruct_path(current):
-    path = []
-    while current is not None:
-        path.append((current.row, current.col))
-        current = current.parent
-    return path[::-1]
-
-def astar_search(grid, start, target):
-    open_set = []
-    heapq.heappush(open_set, (0, start))
-    start.g_cost = 0
-
-    while open_set:
-        _, current_node = heapq.heappop(open_set)
-
-        if current_node == target:
-            return reconstruct_path(current_node)
-
-        for neighbour in get_neighbours(grid, current_node):
-            temp_g_cost = current_node.g_cost + 1
-
-            if temp_g_cost < neighbour.g_cost:
-                neighbour.parent = current_node
-                neighbour.g_cost = temp_g_cost
-                neighbour.h_cost = heuristic(neighbour, target)
-                heapq.heappush(open_set, (neighbour.g_cost + neighbour.h_cost, neighbour))
-
-    return None
-
-class SnakeGame(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title("A* Snake Game")
-        self.canvas = tk.Canvas(self, width=WIDTH, height=HEIGHT, bg=BLACK)
+        self.canvas = tk.Canvas(self.master, bg="black", width=400, height=400)
         self.canvas.pack()
+        self.obstacles = []
+        # Player snake initialization
+        self.snake = [(100, 100), (90, 100), (80, 100)]
+        self.direction = "Right"
 
-        self.grid = generate_grid()
-        self.snake = [(ROWS // 2, COLS // 2), (ROWS // 2, COLS // 2 - 1), (ROWS // 2, COLS // 2 - 2)]
-        self.direction = (0, -1)
-        self.food = self.generate_food()
+        # AI snake initialization
+        self.ai_snake = [(300, 300), (310, 300), (320, 300)]
+        self.ai_direction = "Left"
 
-        self.draw()
-        self.game_loop()
+        self.food = self.create_food()
 
-    def generate_food(self):
-        while True:
-            food = (random.randint(0, ROWS - 1), random.randint(0, COLS - 1))
-            if food not in self.snake:
-                return food
-
-
-    def move_snake(self):
-        head = self.snake[0]
-        path = astar_search(self.grid, self.grid[head[0]][head[1]], self.grid[self.food[0]][self.food[1]])
-
-        if path:
-            next_move = path[1]
-            direction = (next_move[0] - head[0], next_move[1] - head[1])
-            self.direction = direction
-
-        # new_head = (head[0] + self.direction[0], head[1] + self.direction[1])
-
-        # # Keep the snake within the canvas boundaries
-        # if 0 <= new_head[0] < ROWS and 0 <= new_head[1] < COLS:
-        #     self.snake.insert(0, new_head)
-        #     if new_head == self.food:
-        #         self.food = self.generate_food()
-        #     else:
-        #         self.snake.pop()
-        # else:
-        #     # If the snake hits the wall, end the game
-        #     print("Game Over")
-        #     return
-
-        self.draw()
-        self.after(100, self.game_loop)
-
-    def check_collision(self):
-        head = self.snake[0]
-        return (
-            head in self.snake[1:] or
-            head[0] < 0 or head[0] >= ROWS or
-            head[1] < 0 or head[1] >= COLS
-        )
-
-    def draw(self):
-        self.canvas.delete("all")
-        for segment in self.snake:
-            x, y = segment[1] * CELL_SIZE, segment[0] * CELL_SIZE
-            self.canvas.create_rectangle(x, y, x + CELL_SIZE, y + CELL_SIZE, fill=GREEN)
-        x, y = self.food[1] * CELL_SIZE, self.food[0] * CELL_SIZE
-        self.canvas.create_rectangle(x, y, x + CELL_SIZE, y + CELL_SIZE, fill=RED)
+        self.master.bind("<KeyPress>", self.change_direction)
+        self.score_label = tk.Label(self.master, text="Snake Length:  3")  # Initialize score_label
+        self.score_label.pack()
+        self.score_display = self.canvas.create_text(25, 22.5, text="Snake Length:  3", fill="white", anchor="nw")
+        self.score=0
+        # Player snake
+        self.create_boundaries()
         self.update()
+        self.ai_snake = [(300, 300), (310, 300), (320, 300)]  # Initial position for AI snake
+        self.ai_direction = "Left"  # Initial direction for AI snake
+    
+    def move_ai_snake(self):
+        # Implement logic for AI snake's movement
+        # Example: Move towards the player snake
+        ai_head = self.ai_snake[0]
+        player_head = self.snake[0]
 
-    def game_loop(self):
-        if not self.check_collision():
-            self.move_snake()
-            self.draw()
-            self.after(1000, self.game_loop)
-        else:
-            print("Game Over")
+        # Implement basic logic to move AI snake towards player snake
+        if ai_head[0] < player_head[0]:
+            self.ai_direction = "Right"
+        elif ai_head[0] > player_head[0]:
+            self.ai_direction = "Left"
+        elif ai_head[1] < player_head[1]:
+            self.ai_direction = "Down"
+        elif ai_head[1] > player_head[1]:
+            self.ai_direction = "Up"
+
+        # Update AI snake's position based on the determined direction
+        # Implement collision avoidance logic for AI snake
+
+        # ... (additional logic to move AI snake, avoid collisions, etc.)
+
+    # Update method incorporating AI snake's movement
+
+    def create_food(self):
+        while True:
+            x = random.randint(0, 19) * 20
+            y = random.randint(0, 19) * 20
+            food_coords = (x, y, x + 20, y + 20)
+            # Check if food overlaps with boundaries or obstacles
+            overlapping = False
+        
+            # Check boundaries
+            if (
+                x < 20 or x >= 380 or y < 20 or y >= 380
+            ):
+                overlapping = True
+
+            # Check obstacles
+            for obstacle in self.obstacles:
+                obstacle_coords = self.canvas.coords(obstacle)
+                if self.canvas.bbox(obstacle) == food_coords:
+                    overlapping = True
+                    break
+            if not overlapping:
+                break
+    
+        food = self.canvas.create_rectangle(x, y, x + 20, y + 20, fill="red")
+
+        return food
+        
+    def move_snake(self, snake, direction):
+        head = snake[0]
+        new_head = self.get_new_head_position(head, direction)
+
+        # Check for self-collision or boundary collision
+        if new_head in snake or not 0 <= new_head[0] < 380 or not 0 <= new_head[1] < 380:
+            return False
+
+        snake.insert(0, new_head)
+        snake.pop()
+        return True
+
+    def get_new_head_position(self, head, direction):
+        if direction == "Right":
+            return (head[0] + 20, head[1])
+        elif direction == "Left":
+            return (head[0] - 20, head[1])
+        elif direction == "Up":
+            return (head[0], head[1] - 20)
+        elif direction == "Down":
+            return (head[0], head[1] + 20)
+
+    def ai_logic(self):
+        head = self.ai_snake[0]
+        food_coords = self.canvas.coords(self.food)
+        new_directions = []
+
+        # Check for direct line of sight to food
+        if head[0] == food_coords[0]:
+            if head[1] > food_coords[1]:
+                new_directions.append("Up")
+            else:
+                new_directions.append("Down")
+        elif head[1] == food_coords[1]:
+            if head[0] > food_coords[0]:
+                new_directions.append("Left")
+            else:
+                new_directions.append("Right")
+
+        # Avoiding collisions
+        for direction in ["Left", "Right", "Up", "Down"]:
+            new_head = self.get_new_head_position(head, direction)
+            if 0 <= new_head[0] < 400 and 0 <= new_head[1] < 400 and new_head not in self.ai_snake:
+                new_directions.append(direction)
+
+        # Choose a new direction
+        if new_directions:
+            self.ai_direction = random.choice(new_directions)
+
+    def update(self):
+        if not self.move_snake(self.snake, self.direction):
+            self.game_over()
+            return
+        head = self.snake[0]
+        self.ai_logic()
+
+        if not self.move_snake(self.ai_snake, self.ai_direction):
+            self.ai_snake = [(300, 300), (310, 300), (320, 300)]  # Reset AI snake
+
+        # Update player snake on canvas
+        self.canvas.delete("snake")
+        for segment in self.snake:
+            self.canvas.create_rectangle(segment[0], segment[1], segment[0] + 20, segment[1] + 20, fill="green", tags="snake")
+
+        # Update AI snake on canvas
+        self.canvas.delete("ai_snake")
+        for segment in self.ai_snake:
+            self.canvas.create_rectangle(segment[0], segment[1], segment[0] + 20, segment[1] + 20, fill="orange", tags="ai_snake")
+
+        # Food logic
+        self.update_food()
+        self.score_label.config(text=f"Snake Length: {len(self.snake)}")  # Update score_label text
+        self.master.after(200, self.update)
 
 
+        if random.random() < 0.03:  # Adjust probability to create obstacles
+            obstacle = self.create_obstacle()
+            self.obstacles.append(obstacle)
+
+        # Check collision with obstacles
+        for obstacle in self.obstacles:
+            obstacle_coords = self.canvas.coords(obstacle)
+            if head[0] == obstacle_coords[0] and head[1] == obstacle_coords[1]:
+                self.game_over()
+        
+
+    def update_food(self):
+        head = self.snake[0]
+        food_coords = self.canvas.coords(self.food)
+        if head[0] == food_coords[0] and head[1] == food_coords[1]:
+            self.snake.append((0, 0))  # Increase the length
+            self.score=+1
+            self.score_label.config(text=f"Snake Length: {len(self.snake)}")  # Update score_label text
+            self.canvas.delete(self.food)
+            self.food = self.create_food()
+            
+            
+            
+    def change_direction(self, event):
+        if event.keysym == "Right" and self.direction != "Left":
+            self.direction = "Right"
+        elif event.keysym == "Left" and self.direction != "Right":
+            self.direction = "Left"
+        elif event.keysym == "Up" and self.direction != "Down":
+            self.direction = "Up"
+        elif event.keysym == "Down" and self.direction != "Up":
+            self.direction = "Down"
+
+    def game_over(self):
+        print("Game Over!")
+        self.master.destroy()
+    
+    def create_boundaries(self):
+        # Create boundaries on the canvas
+        for i in range(0, 400, 20):
+            self.canvas.create_rectangle(0, i, 20, i + 20, fill="grey")  # Left boundary
+            self.canvas.create_rectangle(i, 0, i + 20, 20, fill="grey")  # Top boundary
+            self.canvas.create_rectangle(i, 380, i + 20, 400, fill="grey")  # Bottom boundary
+            self.canvas.create_rectangle(380, i, 400, i + 20, fill="grey")  # Right boundary
+    
+    def create_obstacle(self):
+        while True:
+            x = random.randint(0, 19) * 20
+            y = random.randint(0, 19) * 20
+
+            overlapping = False
+            if (
+            x < 20 or x >= 380 or y < 20 or y >= 380
+        ):
+                overlapping = True
+
+            if not overlapping:
+                break
+
+        obstacle = self.canvas.create_rectangle(x, y, x + 20, y + 20, fill="white")
+        return obstacle
 if __name__ == "__main__":
-    game = SnakeGame()
-    game.mainloop()
+    root = tk.Tk()
+    game = SnakeGame(root)
+    root.mainloop()
